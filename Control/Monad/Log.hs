@@ -74,7 +74,7 @@ import Data.Monoid (Monoid)
 import qualified Control.Monad.Fail as Fail
 #endif
 import Control.Monad (when, liftM, ap)
-import Control.Monad.Catch (MonadMask, finally)
+import Control.Monad.Catch
 import Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Control.Exception.Lifted as Lifted
 
@@ -314,6 +314,22 @@ instance Fail.MonadFail m => Fail.MonadFail (LogT env m) where
     fail msg = lift (Fail.fail msg)
     {-# INLINE fail #-}
 #endif
+
+instance (MonadThrow m, Fail.MonadFail m) => MonadThrow (LogT env m) where
+    throwM err = lift (throwM err)
+
+instance (MonadCatch m, Fail.MonadFail m, MonadIO m) => MonadCatch (LogT env m) where
+    catch (LogT fma) handler = LogT $ \l -> catch (fma l) (runLogT' l . handler)
+
+instance (MonadMask m, Fail.MonadFail m, MonadIO m) => MonadMask (LogT env m) where
+    mask f = LogT $ \l -> mask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
+    uninterruptibleMask f = LogT $ \l -> uninterruptibleMask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
+    generalBracket acquire release use =
+      LogT $ \l ->
+        let acquire' = runLogT' l acquire
+            release' a = runLogT' l . release a
+            use' = runLogT' l . use
+        in generalBracket acquire' release' use'
 
 instance (MonadFix m, Fail.MonadFail m) => MonadFix (LogT r m) where
     mfix f = LogT $ \ r -> mfix $ \ a -> runLogT (f a) r
