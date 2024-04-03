@@ -57,7 +57,7 @@ module Control.Monad.Log (
     -- * re-export from text-show and fast-logger
     , LogStr
     , toLogStr
-    , LogType(..)
+    , LogType
     , FileLogSpec(..)
     , TimeFormat
     , FormattedTime
@@ -104,7 +104,6 @@ import TextShow as X
 
 import qualified Data.Aeson as JSON
 import Data.Aeson (ToJSON, fromEncoding, (.=))
-import Data.Monoid ((<>))
 
 -----------------------------------------------------------------------------------------
 
@@ -288,14 +287,12 @@ instance (Monad m) => Functor (LogT env m) where
     {-# INLINE fmap #-}
 
 instance (Monad m) => Applicative (LogT env m) where
-    pure = return
+    pure = LogT . const . pure
     {-# INLINE pure #-}
     (<*>) = ap
     {-# INLINE (<*>) #-}
 
 instance (Monad m) => Monad (LogT env m) where
-    return = LogT . const . return
-    {-# INLINE return #-}
     LogT ma >>= f = LogT $ \lgr -> do
         a <- ma lgr
         let LogT f' = f a
