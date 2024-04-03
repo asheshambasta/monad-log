@@ -85,7 +85,6 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Cont as Cont
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Identity
-import Control.Monad.Trans.List
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans.RWS.Lazy as LazyRWS (RWST, mapRWST)
 import qualified Control.Monad.Trans.RWS.Strict as StrictRWS (RWST, mapRWST)
@@ -233,10 +232,6 @@ instance MonadLog env m => MonadLog env (IdentityT m) where
     askLogger   = lift askLogger
     localLogger = mapIdentityT . localLogger
 
-instance MonadLog env m => MonadLog env (ListT m) where
-    askLogger   = lift askLogger
-    localLogger = mapListT . localLogger
-
 instance MonadLog env m => MonadLog env (MaybeT m) where
     askLogger   = lift askLogger
     localLogger = mapMaybeT . localLogger
@@ -288,17 +283,17 @@ localEnv f = localLogger $ \ lgr -> lgr { environment = f (environment lgr) }
 -- a special reader monad which embed a 'Logger'.
 newtype LogT env m a = LogT { runLogT :: Logger env -> m a }
 
-instance (Monad m, Fail.MonadFail m) => Functor (LogT env m) where
+instance (Monad m) => Functor (LogT env m) where
     fmap = liftM
     {-# INLINE fmap #-}
 
-instance (Monad m, Fail.MonadFail m) => Applicative (LogT env m) where
+instance (Monad m) => Applicative (LogT env m) where
     pure = return
     {-# INLINE pure #-}
     (<*>) = ap
     {-# INLINE (<*>) #-}
 
-instance (Monad m, Fail.MonadFail m) => Monad (LogT env m) where
+instance (Monad m) => Monad (LogT env m) where
     return = LogT . const . return
     {-# INLINE return #-}
     LogT ma >>= f = LogT $ \lgr -> do
