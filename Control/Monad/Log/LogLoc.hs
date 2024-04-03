@@ -13,7 +13,6 @@ import Control.Applicative
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Aeson
-import Data.Monoid ((<>))
 
 import Language.Haskell.TH.Syntax (Q, Exp)
 import qualified Language.Haskell.TH.Syntax as TH

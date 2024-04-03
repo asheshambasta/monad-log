@@ -57,7 +57,7 @@ module Control.Monad.Log (
     -- * re-export from text-show and fast-logger
     , LogStr
     , toLogStr
-    , LogType(..)
+    , LogType
     , FileLogSpec(..)
     , TimeFormat
     , FormattedTime
@@ -85,7 +85,6 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Cont as Cont
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Identity
-import Control.Monad.Trans.List
 import Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans.RWS.Lazy as LazyRWS (RWST, mapRWST)
 import qualified Control.Monad.Trans.RWS.Strict as StrictRWS (RWST, mapRWST)
@@ -105,7 +104,6 @@ import TextShow as X
 
 import qualified Data.Aeson as JSON
 import Data.Aeson (ToJSON, fromEncoding, (.=))
-import Data.Monoid ((<>))
 
 -----------------------------------------------------------------------------------------
 
@@ -233,10 +231,6 @@ instance MonadLog env m => MonadLog env (IdentityT m) where
     askLogger   = lift askLogger
     localLogger = mapIdentityT . localLogger
 
-instance MonadLog env m => MonadLog env (ListT m) where
-    askLogger   = lift askLogger
-    localLogger = mapListT . localLogger
-
 instance MonadLog env m => MonadLog env (MaybeT m) where
     askLogger   = lift askLogger
     localLogger = mapMaybeT . localLogger
@@ -288,26 +282,22 @@ localEnv f = localLogger $ \ lgr -> lgr { environment = f (environment lgr) }
 -- a special reader monad which embed a 'Logger'.
 newtype LogT env m a = LogT { runLogT :: Logger env -> m a }
 
-instance (Monad m, Fail.MonadFail m) => Functor (LogT env m) where
+instance (Monad m) => Functor (LogT env m) where
     fmap = liftM
     {-# INLINE fmap #-}
 
-instance (Monad m, Fail.MonadFail m) => Applicative (LogT env m) where
-    pure = return
+instance (Monad m) => Applicative (LogT env m) where
+    pure = LogT . const . pure
     {-# INLINE pure #-}
     (<*>) = ap
     {-# INLINE (<*>) #-}
 
-instance (Monad m, Fail.MonadFail m) => Monad (LogT env m) where
-    return = LogT . const . return
-    {-# INLINE return #-}
+instance (Monad m) => Monad (LogT env m) where
     LogT ma >>= f = LogT $ \lgr -> do
         a <- ma lgr
         let LogT f' = f a
         f' lgr
     {-# INLINE (>>=) #-}
-    -- fail msg = lift (Fail.fail msg)
-    -- {-# INLINE fail #-}
 
 #if MIN_VERSION_base(4,9,0)
 instance Fail.MonadFail m => Fail.MonadFail (LogT env m) where
@@ -315,13 +305,13 @@ instance Fail.MonadFail m => Fail.MonadFail (LogT env m) where
     {-# INLINE fail #-}
 #endif
 
-instance (MonadThrow m, Fail.MonadFail m) => MonadThrow (LogT env m) where
+instance (MonadThrow m) => MonadThrow (LogT env m) where
     throwM err = lift (throwM err)
 
-instance (MonadCatch m, Fail.MonadFail m, MonadIO m) => MonadCatch (LogT env m) where
+instance (MonadCatch m, MonadIO m) => MonadCatch (LogT env m) where
     catch (LogT fma) handler = LogT $ \l -> catch (fma l) (runLogT' l . handler)
 
-instance (MonadMask m, Fail.MonadFail m, MonadIO m) => MonadMask (LogT env m) where
+instance (MonadMask m, MonadIO m) => MonadMask (LogT env m) where
     mask f = LogT $ \l -> mask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
     uninterruptibleMask f = LogT $ \l -> uninterruptibleMask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
     generalBracket acquire release use =
@@ -331,7 +321,7 @@ instance (MonadMask m, Fail.MonadFail m, MonadIO m) => MonadMask (LogT env m) wh
             use' = runLogT' l . use
         in generalBracket acquire' release' use'
 
-instance (MonadFix m, Fail.MonadFail m) => MonadFix (LogT r m) where
+instance (MonadFix m) => MonadFix (LogT r m) where
     mfix f = LogT $ \ r -> mfix $ \ a -> runLogT (f a) r
     {-# INLINE mfix #-}
 
@@ -339,11 +329,11 @@ instance MonadTrans (LogT env) where
     lift = LogT . const
     {-# INLINE lift #-}
 
-instance (MonadIO m, Fail.MonadFail m) => MonadIO (LogT env m) where
+instance (MonadIO m) => MonadIO (LogT env m) where
     liftIO = lift . liftIO
     {-# INLINE liftIO #-}
 
-instance (MonadIO m, Fail.MonadFail m) => MonadLog env (LogT env m) where
+instance (MonadIO m) => MonadLog env (LogT env m) where
     askLogger = LogT return
     {-# INLINE askLogger #-}
     localLogger f ma = LogT $ \ r -> runLogT ma (f r)
