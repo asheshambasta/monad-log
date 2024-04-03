@@ -301,8 +301,6 @@ instance (Monad m) => Monad (LogT env m) where
         let LogT f' = f a
         f' lgr
     {-# INLINE (>>=) #-}
-    -- fail msg = lift (Fail.fail msg)
-    -- {-# INLINE fail #-}
 
 #if MIN_VERSION_base(4,9,0)
 instance Fail.MonadFail m => Fail.MonadFail (LogT env m) where
@@ -310,13 +308,13 @@ instance Fail.MonadFail m => Fail.MonadFail (LogT env m) where
     {-# INLINE fail #-}
 #endif
 
-instance (MonadThrow m, Fail.MonadFail m) => MonadThrow (LogT env m) where
+instance (MonadThrow m) => MonadThrow (LogT env m) where
     throwM err = lift (throwM err)
 
-instance (MonadCatch m, Fail.MonadFail m, MonadIO m) => MonadCatch (LogT env m) where
+instance (MonadCatch m, MonadIO m) => MonadCatch (LogT env m) where
     catch (LogT fma) handler = LogT $ \l -> catch (fma l) (runLogT' l . handler)
 
-instance (MonadMask m, Fail.MonadFail m, MonadIO m) => MonadMask (LogT env m) where
+instance (MonadMask m, MonadIO m) => MonadMask (LogT env m) where
     mask f = LogT $ \l -> mask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
     uninterruptibleMask f = LogT $ \l -> uninterruptibleMask $ \ma -> runLogT' l $ f (LogT . const . ma . runLogT' l)
     generalBracket acquire release use =
@@ -326,7 +324,7 @@ instance (MonadMask m, Fail.MonadFail m, MonadIO m) => MonadMask (LogT env m) wh
             use' = runLogT' l . use
         in generalBracket acquire' release' use'
 
-instance (MonadFix m, Fail.MonadFail m) => MonadFix (LogT r m) where
+instance (MonadFix m) => MonadFix (LogT r m) where
     mfix f = LogT $ \ r -> mfix $ \ a -> runLogT (f a) r
     {-# INLINE mfix #-}
 
@@ -334,11 +332,11 @@ instance MonadTrans (LogT env) where
     lift = LogT . const
     {-# INLINE lift #-}
 
-instance (MonadIO m, Fail.MonadFail m) => MonadIO (LogT env m) where
+instance (MonadIO m) => MonadIO (LogT env m) where
     liftIO = lift . liftIO
     {-# INLINE liftIO #-}
 
-instance (MonadIO m, Fail.MonadFail m) => MonadLog env (LogT env m) where
+instance (MonadIO m) => MonadLog env (LogT env m) where
     askLogger = LogT return
     {-# INLINE askLogger #-}
     localLogger f ma = LogT $ \ r -> runLogT ma (f r)
