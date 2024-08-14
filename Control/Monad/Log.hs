@@ -44,6 +44,8 @@ module Control.Monad.Log (
     , runLogTSafeBase
     , runLogT'
     -- * logging functions
+    , log
+    , log' 
     , debug
     , info
     , warning
